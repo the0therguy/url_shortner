@@ -1,22 +1,17 @@
-import datetime
-
-from django.contrib.auth import authenticate
-from django.shortcuts import render, redirect
-from django.views import View
+from django.conf import settings
+from django.contrib.auth import login
+from django.shortcuts import redirect
 from knox.models import AuthToken
-from rest_framework.decorators import permission_classes, api_view
+from knox.views import LoginView as KnoxLoginView
+from rest_framework import status, generics
+from rest_framework.authtoken.serializers import AuthTokenSerializer
 from rest_framework.generics import ListAPIView, CreateAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from .models import *
 from .serializer import *
-from rest_framework import status, generics
-from rest_framework.response import Response
-from django.conf import settings
-from rest_framework.authtoken.serializers import AuthTokenSerializer
-from django.contrib.auth import login
-from random import choices
-from knox.views import LoginView as KnoxLoginView
 
 
 # Create your views here.
@@ -35,9 +30,11 @@ class Redirector(APIView):
         shortener_link = settings.HOST_URL + '/' + self.kwargs['shortener_link']
         redirect_link = Link.objects.filter(shortened_link=shortener_link).first().original_link
         exp_date = Link.objects.filter(shortened_link=shortener_link).first().expiration_date
-        # if datetime.datetime.now() > exp_date:
+        if datetime.datetime.now() + datetime.timedelta(hours=6) > datetime.datetime.strptime(
+                exp_date.strftime("%Y-%m-%d %H:%M:%S.%f"), "%Y-%m-%d %H:%M:%S.%f"):
+            return Response({"Message": "Link is expired"}, status=status.HTTP_400_BAD_REQUEST)
+
         return redirect(redirect_link)
-        # return Response({"Message": "Link is expired"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginAPI(KnoxLoginView):
@@ -76,7 +73,7 @@ class Profile(APIView):
         number_of_link = Link.objects.filter(user=user).count()
 
         return Response({'user': serializer.data,
-                         'number_of_link':number_of_link,
+                         'number_of_link': number_of_link,
                          'link': link_serializer.data},
                         status=status.HTTP_200_OK)
 
